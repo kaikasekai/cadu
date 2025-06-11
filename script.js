@@ -1,74 +1,171 @@
-const CSV_URL = './data.csv'
+const CSV_URL = './data.csv';  // путь к вашему CSV
 
-async function fetchCSV(url) {
-  const res = await fetch(url);
-  const text = await res.text();
-  return parseCSV(text);
-}
+// Функция парсинга CSV в объект с массивами данных
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',');
 
-function parseCSV(data) {
-  const lines = data.trim().split('\n');
-  const rows = lines.slice(1).map(line => line.split(','));
+  const data = {
+    date: [],
+    forecast1: [],
+    forecast2: [],
+    forecast3: [],
+    forecast_avg: [],
+    btc_actual: [],
+    moving_average: []
+  };
 
-  const dates = [];
-  const forecasts = [[], [], []];
-  const forecastAvg = [];
-  const actual = [];
-  const movingAvg = [];
-
-  rows.forEach(row => {
-    dates.push(row[0]);
-    forecasts[0].push(+row[1]);
-    forecasts[1].push(+row[2]);
-    forecasts[2].push(+row[3]);
-    forecastAvg.push(+row[4]);
-    actual.push(row[5] !== '---' ? +row[5] : null);
-    movingAvg.push(row[6] !== '---' ? +row[6] : null);
-  });
-
-  return { dates, forecasts, forecastAvg, actual, movingAvg };
-}
-
-function calculateAccuracy(forecastAvg, actual) {
-  let totalError = 0;
-  let count = 0;
-  for (let i = 0; i < forecastAvg.length; i++) {
-    if (actual[i] != null) {
-      totalError += Math.abs(forecastAvg[i] - actual[i]);
-      count++;
-    }
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i].split(',');
+    data.date.push(row[0]);
+    data.forecast1.push(+row[1]);
+    data.forecast2.push(+row[2]);
+    data.forecast3.push(+row[3]);
+    data.forecast_avg.push(+row[4]);
+    data.btc_actual.push(row[5] === '' ? null : +row[5]);
+    data.moving_average.push(row[6] === '' ? null : +row[6]);
   }
-  return count ? (totalError / count).toFixed(2) : 'N/A';
+
+  return data;
 }
 
+// Функция отрисовки графика
 function renderChart(data) {
   const ctx = document.getElementById('btcChart').getContext('2d');
-  new Chart(ctx, {
+
+  // Если график уже создан — уничтожаем, чтобы обновить
+  if (window.btcChartInstance) {
+    window.btcChartInstance.destroy();
+  }
+
+  window.btcChartInstance = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: data.dates,
+      labels: data.date,
       datasets: [
-        { label: 'Forecast 1', data: data.forecasts[0], borderColor: '#FF6B6B', fill: false },
-        { label: 'Forecast 2', data: data.forecasts[1], borderColor: '#FFD93D', fill: false },
-        { label: 'Forecast 3', data: data.forecasts[2], borderColor: '#6BCB77', fill: false },
-        { label: 'Forecast Avg', data: data.forecastAvg, borderColor: '#4D96FF', borderWidth: 2, fill: false },
-        { label: 'BTC Actual', data: data.actual, borderColor: '#1B9CFC', borderDash: [5, 5], fill: false },
-        { label: '30-Day Moving Avg', data: data.movingAvg, borderColor: '#8E44AD', borderDash: [2, 2], fill: false }
+        {
+          label: 'Forecast 1',
+          data: data.forecast1,
+          borderColor: '#4caf50',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          tension: 0.3,
+        },
+        {
+          label: 'Forecast 2',
+          data: data.forecast2,
+          borderColor: '#2196f3',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          tension: 0.3,
+        },
+        {
+          label: 'Forecast 3',
+          data: data.forecast3,
+          borderColor: '#ff9800',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          tension: 0.3,
+        },
+        {
+          label: 'Average Forecast',
+          data: data.forecast_avg,
+          borderColor: '#9c27b0',
+          backgroundColor: 'transparent',
+          borderWidth: 3,
+          borderDash: [5, 5],
+          tension: 0.3,
+        },
+        {
+          label: 'BTC Actual',
+          data: data.btc_actual,
+          borderColor: '#f44336',
+          backgroundColor: 'transparent',
+          borderWidth: 3,
+          tension: 0.3,
+          spanGaps: true,  // чтобы линия не обрывалась на null
+        },
+        {
+          label: '30-day Moving Average',
+          data: data.moving_average,
+          borderColor: '#607d8b',
+          backgroundColor: 'transparent',
+          borderWidth: 3,
+          borderDash: [10, 5],
+          tension: 0.3,
+          spanGaps: true,
+        },
       ]
     },
     options: {
       responsive: true,
-      interaction: { mode: 'index', intersect: false },
-      scales: { y: { beginAtZero: false } }
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      stacked: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#333',
+            font: {
+              size: 14,
+            }
+          }
+        },
+        tooltip: {
+          enabled: true,
+          mode: 'nearest',
+          intersect: false,
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#555' },
+          grid: { color: '#eee' },
+          title: {
+            display: true,
+            text: 'Date',
+            color: '#555',
+            font: { size: 16 }
+          }
+        },
+        y: {
+          ticks: { color: '#555' },
+          grid: { color: '#eee' },
+          title: {
+            display: true,
+            text: 'Price (USD)',
+            color: '#555',
+            font: { size: 16 }
+          },
+          beginAtZero: false,
+        }
+      }
     }
   });
 }
 
-async function main() {
-  const data = await fetchCSV(CSV_URL);
-  const accuracy = calculateAccuracy(data.forecastAvg, data.actual);
-  document.getElementById('accuracy').textContent = ${accuracy} USD;
-  renderChart(data);
+async function fetchAndRenderChart() {
+  console.log('Fetching CSV from:', CSV_URL);
+  try {
+    const res = await fetch(CSV_URL);
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    const text = await res.text();
+
+    console.log('CSV raw text preview:\n', text.split('\n').slice(0, 5).join('\n'));
+
+    const data = parseCSV(text);
+    console.log('Parsed data:', data);
+
+    renderChart(data);
+  } catch (error) {
+    console.
+      error('Error fetching or parsing CSV:', error);
+  }
 }
 
-main();
+fetchAndRenderChart();
