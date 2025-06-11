@@ -1,4 +1,4 @@
-const CSV_URL = './data.csv';
+const CSV_URL = 'https://raw.githubusercontent.com/kaikasekai/caduai/refs/heads/main/data.csv';
 
 async function fetchCSV(url) {
   const res = await fetch(url);
