@@ -5,6 +5,24 @@ body {
   background-color: #3e3e3e;
   color: #ffffff;
 }
+#chart-container {
+  position: relative;
+  width: 95%;
+  max-width: 1200px;
+  height: 60vh;
+  margin: 2rem auto;
+  background-color: #3e3e3e;
+  padding: 1rem;
+  border-radius: 10px;
+  box-sizing: border-box;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: #3e3e3e;
+}
 .container {
   max-width: 1000px;
   margin: auto;
