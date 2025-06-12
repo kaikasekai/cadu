@@ -2,49 +2,59 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # каждый день в 23:00 UTC
+    - cron: '0 23 59 * *'
   workflow_dispatch:
 
 jobs:
-  update-btc:
+  update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Fetch BTC closing price
-        id: fetch_price
+
+      - name: Fetch BTC price
+        id: price
         run: |
-          PRICE=$(curl -s 'https://api.coingecko.com/api/v3/coins/bitcoin/history?date='$(date -d "yesterday" +'%d-%m-%Y') | jq '.market_data.current_price.usd')
+          PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
           echo "::set-output name=price::$PRICE"
-      - name: Update data.csv
+
+      - name: Load data.csv and update
         run: |
-          PRICE=${{ steps.fetch_price.outputs.price }}
-          DATE=$(date -d "yesterday" +'%Y-%m-%d')
-          echo "Appending actual price for $DATE: $PRICE"
-          MA=$(awk -F',' -v d="$DATE" -v p="$PRICE" '
-            BEGIN{sum=0;count=0}
-            {rows[NR]=$0}
-            END{
-              for(i=NR-29;i<=NR;i++){
-                split(rows[i], a,",")
-                if(a[6] != "" && a[6] !="---"){
-                  sum+=a[6]; count++
-                }
-              }
-              if(count<30){ma="---"} else ma=sprintf("%.2f", sum/count)
-              print ma
-            }
-          ' data.csv)
-          awk -F',' -v d="$DATE" -v p="$PRICE" -v ma="$MA" '
-            BEGIN{OFS=","}
-            { if($1==d){
-                $6=p; $7=ma
-              }
-              print
-            }' data.csv > tmp.csv && mv tmp.csv data.csv
-      - name: Commit and push
+          DATE=$(date -u +'%Y-%m-%d')
+          PRICE=${{ steps.price.outputs.price }}
+          python3 - << 'EOF'
+import csv
+from datetime import datetime
+from statistics import mean
+
+rows = list(csv.reader(open('data.csv')))
+headers = rows[0]
+rows = rows[1:]
+
+# Append new row if DATE not in file
+today = '$DATE'
+if today not in [r[0] for r in rows]:
+    rows.append([today] + ['']*(len(headers)-2) + [PRICE, ''])
+
+# Compute moving_average for each row
+actual_idx = headers.index('btc_actual')
+ma_idx = headers.index('moving_average')
+out = [headers]
+for i, r in enumerate(rows):
+    out.append(r)
+    if i + 1 >= 30:
+        window = [float(x[actual_idx]) for x in rows[i-29:i+1] if x[actual_idx]]
+        if len(window) == 30:
+            r[ma_idx] = f"{mean(window):.2f}"
+
+with open('data.csv', 'w') as f:
+    writer = csv.writer(f)
+    writer.writerows(out)
+EOF
+
+      - name: Commit changes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "actions@github.com"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "actions@github.com"
           git add data.csv
-          git commit -m "Daily update BTC actual & MA for $(date -d "yesterday" +'%Y-%m-%d')" || echo "No changes"
+          git diff --quiet || git commit -m "chore: daily update BTC ${DATE}"
           git push
