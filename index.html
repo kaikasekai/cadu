@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>BTC Forecast Dashboard</title>
   <link rel="stylesheet" href="style.css" />
@@ -12,20 +13,17 @@
     <h1>BTC Forecast Dashboard</h1>
     <canvas id="btcChart"></canvas>
     <div class="legend">
-      <p><strong>Average Error:</strong> <span id="accuracy"></span></p>
+      <p><strong>Average Error:</strong> <span id="accuracy">--</span> USD</p>
     </div>
-
     <details>
       <summary>About the Project</summary>
-      <p>This dashboard shows BTC forecasts, actual values, and the 30-day moving average. Forecasts are updated monthly. Actual prices are fetched daily from CoinGecko.</p>
+      <p>This dashboard displays multiple BTC forecasts, average forecast, actual BTC price and 30-day moving average. Forecasts are updated monthly, BTC actual values and moving average are updated daily.</p>
     </details>
-
     <details>
       <summary>Forecasting Method</summary>
-      <p>Three models generate forecasts. The average forecast is compared to real BTC prices to compute accuracy.</p>
+      <p>Forecasts are generated using multiple models. Their average is compared to actual BTC to estimate accuracy.</p>
     </details>
   </div>
-  
   <script src="script.js"></script>
 </body>
 </html>
