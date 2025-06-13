@@ -1,10 +1,10 @@
-name: BTC Data Update Test
+name: BTC Data Patch
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # Для возможности пуша в репозиторий
+  contents: write
 
 jobs:
   update:
@@ -17,52 +17,48 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Fetch BTC price
-        id: price
+        id: fetch
         run: |
           PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
           echo "price=$PRICE" >> $GITHUB_ENV
-          echo "date=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
 
-      - name: Update data.csv with today's BTC price
-        env:
-          DATE: ${{ env.date }}
-          PRICE: ${{ env.price }}
+      - name: Patch data.csv with BTC actual
         run: |
-          python3 -c "
+          DATE=$(date -u +'%Y-%m-%d')
+          PRICE=$price
+          python3 - <<EOF
 import csv
 
-today = '${DATE}'
-price = float('${PRICE}')
+date = "$DATE"
+price = "$PRICE"
 
 with open('data.csv', newline='') as f:
-    reader = list(csv.reader(f))
-headers = reader[0]
-rows = reader[1:]
+    rows = list(csv.reader(f))
 
-date_idx = headers.index('date')
-actual_idx = headers.index('btc_actual')
+headers = rows[0]
+date_idx = headers.index("date")
+actual_idx = headers.index("btc_actual")
 
 found = False
-for row in rows:
-    if row[date_idx] == today:
+for r in rows[1:]:
+    if r[date_idx] == date:
+        if not r[actual_idx]:
+            r[actual_idx] = price
         found = True
-        if not row[actual_idx]:
-            row[actual_idx] = str(price)
+        break
 
 if not found:
-    new_row = [today] + [''] * (len(headers) - 2) + [str(price), '']
-    rows.append(new_row)
+    rows.append([date, '', '', '', '', price, ''])
 
 with open('data.csv', 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(headers)
     writer.writerows(rows)
-"
+EOF
 
       - name: Commit changes
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
           git add data.csv
-          git diff --quiet || git commit -m "chore: append BTC price for $DATE"
+          git diff --quiet || git commit -m "chore: update BTC actual for $DATE"
           git push
