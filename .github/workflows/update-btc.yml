@@ -2,7 +2,7 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '39 13 * * *'
+    - cron: '46 13 * * *'
   workflow_dispatch:
 
 jobs:
@@ -16,16 +16,18 @@ jobs:
         id: price
         run: |
           PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
-          echo "price=$PRICE" >> $GITHUB_ENV
+          echo "PRICE=$PRICE" >> $GITHUB_ENV
 
       - name: Load data.csv and update
         run: |
           DATE=$(date -u +'%Y-%m-%d')
-          PRICE=$price
           python3 - << EOF
 import csv
 from datetime import datetime
 from statistics import mean
+
+date = "$DATE"
+price = float("${{ env.PRICE }}")
 
 with open('data.csv', newline='') as f:
     reader = list(csv.reader(f))
@@ -36,14 +38,10 @@ date_idx = headers.index('date')
 actual_idx = headers.index('btc_actual')
 ma_idx = headers.index('moving_average')
 
-today = "$DATE"
-price = float("$PRICE")
-
 dates = [r[date_idx] for r in rows]
-if today not in dates:
-    rows.append([today] + ['']*(len(headers)-2) + [str(price), ''])
+if date not in dates:
+    rows.append([date] + ['']*(len(headers)-2) + [str(price), ''])
 
-# Calculate moving average only for rows starting from 30th day with btc_actual values
 for i in range(len(rows)):
     if i >= 29:
         window = []
