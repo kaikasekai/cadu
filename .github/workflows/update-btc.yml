@@ -2,7 +2,7 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '17 13 * * *'
+    - cron: '24 13 * * *'
   workflow_dispatch:
 
 jobs:
@@ -46,7 +46,7 @@ actual_index = headers.index("btc_actual")
 ma_index = headers.index("moving_average")
 
 for i in range(len(data)):
-    if i >= 29 and not data[i][ma_index]:
+    if i >= 29 and (not data[i][ma_index]):
         try:
             window = [float(data[j][actual_index]) for j in range(i - 29, i + 1) if data[j][actual_index]]
             if len(window) == 30:
