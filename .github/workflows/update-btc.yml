@@ -2,7 +2,7 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    - cron: '47 12 * * *'
   workflow_dispatch:
 
 jobs:
@@ -15,13 +15,13 @@ jobs:
         id: price
         run: |
           PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
-          echo "::set-output name=price::$PRICE"
+          echo "price=$PRICE" >> $GITHUB_OUTPUT
 
       - name: Load data.csv and update
         run: |
           DATE=$(date -u +'%Y-%m-%d')
           PRICE=${{ steps.price.outputs.price }}
-          python3 - << 'EOF'
+          python3 - << EOF
 import csv
 from datetime import datetime
 from statistics import mean
@@ -33,7 +33,7 @@ rows = rows[1:]
 # Append new row if DATE not in file
 today = '$DATE'
 if today not in [r[0] for r in rows]:
-    rows.append([today] + ['']*(len(headers)-2) + [PRICE, ''])
+    rows.append([today] + ['']*(len(headers)-2) + [str($PRICE), ''])
 
 # Compute moving_average for each row
 actual_idx = headers.index('btc_actual')
