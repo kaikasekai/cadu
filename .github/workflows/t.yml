@@ -1,0 +1,36 @@
+- name: Update data.csv with today's BTC price
+  env:
+    DATE: ${{ steps.price.outputs.date }}
+    PRICE: ${{ env.price }}
+  run: |
+    python3 - << EOF
+import csv
+from datetime import datetime
+
+today = "${{ env.DATE }}"
+price = float("${{ env.PRICE }}")
+
+with open("data.csv", newline="") as f:
+    reader = list(csv.reader(f))
+headers = reader[0]
+rows = reader[1:]
+
+date_idx = headers.index("date")
+actual_idx = headers.index("btc_actual")
+
+found = False
+for row in rows:
+    if row[date_idx] == today:
+        found = True
+        if not row[actual_idx]:
+            row[actual_idx] = str(price)
+
+if not found:
+    new_row = [today] + [""] * (len(headers) - 2) + [str(price), ""]
+    rows.append(new_row)
+
+with open("data.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(headers)
+    writer.writerows(rows)
+EOF
