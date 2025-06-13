@@ -1,0 +1,65 @@
+name: BTC Data Update Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # 👈 даёт права на push
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Fetch BTC price
+        id: price
+        run: |
+          PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
+          echo "price=$PRICE" >> $GITHUB_ENV
+
+      - name: Update data.csv with today's BTC price
+        run: |
+          DATE=$(date -u +'%Y-%m-%d')
+          PRICE=${{ env.price }}
+          python3 - << EOF
+import csv
+
+with open('data.csv', newline='') as f:
+    reader = list(csv.reader(f))
+headers = reader[0]
+rows = reader[1:]
+
+date_idx = headers.index('date')
+actual_idx = headers.index('btc_actual')
+
+today = "$DATE"
+price = float("$PRICE")
+found = False
+
+for r in rows:
+    if r[date_idx] == today:
+        found = True
+        if not r[actual_idx]:
+            r[actual_idx] = str(price)
+
+if not found:
+    rows.append([today] + ['']*(len(headers)-2) + [str(price), ''])
+
+with open('data.csv', 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(headers)
+    writer.writerows(rows)
+EOF
+
+      - name: Commit changes
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "actions@github.com"
+          git add data.csv
+          git diff --quiet || git commit -m "chore: append BTC price for $DATE"
+          git push
