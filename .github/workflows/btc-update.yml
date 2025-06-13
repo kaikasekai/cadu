@@ -1,9 +1,10 @@
-name: Daily BTC Update
+name: BTC Data Update
 
 on:
-  schedule:
-    - cron: '18 16 * * *'  # каждый день в 23:00 UTC
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   update:
@@ -12,8 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Fetch BTC price
-        id: get_price
+        id: price
         run: |
           PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
           echo "price=$PRICE" >> $GITHUB_ENV
@@ -21,55 +25,43 @@ jobs:
       - name: Update data.csv
         run: |
           DATE=$(date -u +'%Y-%m-%d')
-          python3 - <<EOF
+          PRICE=$price
+          python3 - << EOF
 import csv
-from statistics import mean
-
-date = "$DATE"
-price = float("${{ env.price }}")
 
 with open("data.csv", newline="") as f:
-    reader = list(csv.reader(f))
-headers = reader[0]
-rows = reader[1:]
+    rows = list(csv.reader(f))
+
+headers = rows[0]
+data = rows[1:]
 
 date_idx = headers.index("date")
 actual_idx = headers.index("btc_actual")
-ma_idx = headers.index("moving_average")
 
-# Обновить btc_actual, если дата уже есть, иначе — добавить новую строку
-updated = False
-for row in rows:
-    if row[date_idx] == date:
-        row[actual_idx] = f"{price:.2f}"
-        updated = True
+found = False
+for row in data:
+    if row[date_idx] == "$DATE":
+        found = True
+        if row[actual_idx].strip() == "":
+            row[actual_idx] = "$PRICE"
         break
 
-if not updated:
-    rows.append([date] + ['']*(len(headers)-2) + [f"{price:.2f}", ''])
+if not found:
+    new_row = [""] * len(headers)
+    new_row[date_idx] = "$DATE"
+    new_row[actual_idx] = "$PRICE"
+    data.append(new_row)
 
-# Пересчёт moving_average
-for i in range(len(rows)):
-    if i >= 29:
-        window = []
-        for j in range(i-29, i+1):
-            val = rows[j][actual_idx]
-            if val:
-                window.append(float(val))
-        if len(window) == 30:
-            rows[i][ma_idx] = f"{mean(window):.2f}"
-
-# Запись файла
 with open("data.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerows(data)
 EOF
 
-      - name: Commit and push
+      - name: Commit changes
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
           git add data.csv
-          git diff --quiet || git commit -m "chore: daily update BTC $DATE"
+          git diff --quiet || git commit -m "chore: update BTC price for $DATE"
           git push
