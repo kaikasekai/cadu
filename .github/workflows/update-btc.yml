@@ -2,7 +2,7 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '46 13 * * *'
+    - cron: '53 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -12,31 +12,34 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install jq
+        run: sudo apt-get install jq
+
       - name: Fetch BTC price
-        id: price
+        id: fetch
         run: |
           PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
-          echo "PRICE=$PRICE" >> $GITHUB_ENV
+          echo "BTC_PRICE=$PRICE" >> $GITHUB_ENV
 
-      - name: Load data.csv and update
+      - name: Update data.csv
         run: |
           DATE=$(date -u +'%Y-%m-%d')
-          python3 - << EOF
+          python3 - <<EOF
 import csv
 from datetime import datetime
 from statistics import mean
 
 date = "$DATE"
-price = float("${{ env.PRICE }}")
+price = float("${{ env.BTC_PRICE }}")
 
-with open('data.csv', newline='') as f:
+with open("data.csv", newline="") as f:
     reader = list(csv.reader(f))
 headers = reader[0]
 rows = reader[1:]
 
-date_idx = headers.index('date')
-actual_idx = headers.index('btc_actual')
-ma_idx = headers.index('moving_average')
+date_idx = headers.index("date")
+actual_idx = headers.index("btc_actual")
+ma_idx = headers.index("moving_average")
 
 dates = [r[date_idx] for r in rows]
 if date not in dates:
@@ -52,16 +55,16 @@ for i in range(len(rows)):
         if len(window) == 30:
             rows[i][ma_idx] = f"{mean(window):.2f}"
 
-with open('data.csv', 'w', newline='') as f:
+with open("data.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(headers)
     writer.writerows(rows)
 EOF
 
-      - name: Commit changes
+      - name: Commit and push changes
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
           git add data.csv
-          git diff --quiet || git commit -m "chore: daily update BTC $(date -u +'%Y-%m-%d')"
+          git diff --quiet || git commit -m "chore: update BTC price"
           git push
