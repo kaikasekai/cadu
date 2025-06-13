@@ -2,7 +2,7 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '9 13 * * *'
+    - cron: '17 13 * * *'
   workflow_dispatch:
 
 jobs:
