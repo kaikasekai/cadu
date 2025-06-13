@@ -2,7 +2,7 @@ name: Daily BTC Update
 
 on:
   schedule:
-    - cron: '4 13 * * *'
+    - cron: '8 13 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,57 +10,60 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Fetch BTC price
-        id: price
+        id: fetch_price
         run: |
-          echo "Fetching BTC price..."
-          PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
-          echo "price=$PRICE" >> $GITHUB_OUTPUT
+          echo "Getting BTC price..."
+          price=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd" | jq '.bitcoin.usd')
+          echo "price=$price" >> $GITHUB_ENV
 
       - name: Update data.csv
         run: |
           DATE=$(date -u +'%Y-%m-%d')
-          PRICE="${{ steps.price.outputs.price }}"
-          python3 - << 'EOF'
+          PRICE=$price
+
+          python3 <<EOF
 import csv
 from statistics import mean
 
-filename = "data.csv"
+date = "$DATE"
+price = "$PRICE"
 
-with open(filename, newline="") as f:
+with open("data.csv", newline="") as f:
     rows = list(csv.reader(f))
 
 headers = rows[0]
-rows = rows[1:]
+data = rows[1:]
 
-today = "$DATE"
-price = "$PRICE"
+dates = [row[0] for row in data]
+if date not in dates:
+    data.append([date] + [''] * (len(headers) - 2) + [price, ''])
 
-if today not in [r[0] for r in rows]:
-    rows.append([today] + [''] * (len(headers) - 2) + [price, ''])
+actual_index = headers.index("btc_actual")
+ma_index = headers.index("moving_average")
 
-actual_idx = headers.index("btc_actual")
-ma_idx = headers.index("moving_average")
+for i in range(len(data)):
+    if i >= 29 and not data[i][ma_index]:
+        try:
+            window = [float(data[j][actual_index]) for j in range(i - 29, i + 1) if data[j][actual_index]]
+            if len(window) == 30:
+                data[i][ma_index] = f"{mean(window):.2f}"
+        except:
+            pass
 
-for i, r in enumerate(rows):
-    if i + 1 >= 30:
-        window = [float(x[actual_idx]) for x in rows[i - 29:i + 1] if x[actual_idx]]
-        if len(window) == 30:
-            r[ma_idx] = f"{mean(window):.2f}"
-
-with open(filename, "w", newline="") as f:
+with open("data.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerows(data)
 EOF
 
-      - name: Commit and push changes
+      - name: Commit and push if changed
         run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "actions@github.com"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           git add data.csv
-          git diff --quiet || git commit -m "chore: daily update BTC"
+          git diff --cached --quiet || git commit -m "chore: update BTC price for $DATE"
           git push
