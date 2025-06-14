@@ -1,56 +1,28 @@
 body {
   margin: 0;
-  padding: 20px;
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-family: Menlo, monospace;
   background-color: #3e3e3e;
-  color: #ffffff;
-}
-#chart-container {
-  position: relative;
-  width: 95%;
-  max-width: 1200px;
-  height: 60vh;
-  margin: 2rem auto;
-  background-color: #3e3e3e;
-  padding: 1rem;
-  border-radius: 10px;
-  box-sizing: border-box;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-}
-
-canvas {
-  width: 100% !important;
-  height: 100% !important;
-  background-color: #3e3e3e;
+  color: white;
 }
 .container {
-  max-width: 1000px;
-  margin: auto;
-}
-h1 {
-  text-align: center;
-  margin-bottom: 20px;
+  padding: 20px;
 }
 canvas {
-  display: block;
   background-color: #3e3e3e;
-  border-radius: 8px;
 }
-.legend {
-  text-align: center;
-  font-size: 1rem;
-  margin: 16px 0;
-}
-details {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
+.accordion-toggle {
+  background-color: #555;
+  color: white;
   padding: 10px;
-  margin-top: 10px;
+  width: 100%;
+  border: none;
+  text-align: left;
 }
-summary {
-  font-weight: bold;
-  cursor: pointer;
+.accordion-content {
+  display: none;
+  background-color: #666;
+  padding: 10px;
 }
-details p {
-  margin: 8px 0;
+.accordion-toggle.active + .accordion-content {
+  display: block;
 }

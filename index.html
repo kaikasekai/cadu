@@ -2,29 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>BTC Forecast Dashboard</title>
+  <title>BTC Forecast</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>BTC Forecast Dashboard</h1>
-    <div id="chart-container">
+    <h1>BTC Forecast</h1>
     <canvas id="btcChart"></canvas>
+    <div class="accordion">
+      <button class="accordion-toggle">About the Project</button>
+      <div class="accordion-content">
+        <p>This project visualizes BTC forecasts, actual prices and moving averages...</p>
+      </div>
     </div>
-    <div class="legend">
-      <p><strong>Average Error:</strong> <span id="accuracy">--</span> USD</p>
-    </div>
-    <details>
-      <summary>About the Project</summary>
-      <p>This dashboard displays multiple BTC forecasts, average forecast, actual BTC price and 30-day moving average. Forecasts are updated monthly, BTC actual values and moving average are updated daily.</p>
-    </details>
-    <details>
-      <summary>Forecasting Method</summary>
-      <p>Forecasts are generated using multiple models. Their average is compared to actual BTC to estimate accuracy.</p>
-    </details>
   </div>
   <script src="script.js"></script>
 </body>
