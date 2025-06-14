@@ -97,29 +97,37 @@ document.addEventListener('DOMContentLoaded', () => {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: {
-              ticks: {
-                autoSkip: true,
-                maxTicksLimit: 12,
-                color: '#ffffff'
-              },
-              grid: { color: '#555' }
-            },
-            y: {
-              ticks: {
-                callback: val => val.toString(), // no comma
-                color: '#ffffff'
-              },
-              grid: { color: '#555' }
-            }
-          },
-          plugins: {
-            legend: {
-              labels: {
-                color: '#ffffff',
-                font: { family: 'Menlo' }
-              }
-            },
+  x: {
+    type: 'time',
+    time: {
+      unit: 'month',
+      displayFormats: {
+        month: 'MMM' // Jan, Feb, etc.
+      }
+    },
+    ticks: {
+      color: '#ffffff'
+    },
+    grid: { color: '#555' }
+  },
+  y: {
+    title: {
+      display: true,
+      text: 'USD',
+      color: '#ffffff',
+      font: {
+        family: 'Menlo',
+        size: 14,
+        weight: 'bold'
+      }
+    },
+    ticks: {
+      callback: val => val.toString(), // просто число
+      color: '#ffffff'
+    },
+    grid: { color: '#555' }
+  }
+},
             tooltip: {
               mode: 'index',
               intersect: false
