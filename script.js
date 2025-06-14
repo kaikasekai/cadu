@@ -6,24 +6,32 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(text => {
       const rows = text.trim().split('\n');
       const headers = rows[0].split(',');
-
       const dataRows = rows.slice(1).map(row => row.split(','));
 
-      const dates = dataRows.map(r => r[0]);
+      // Найдём индекс первой строки, где есть forecast1 (или другой forecast)
+      const forecastCols = headers.filter(h => h.startsWith('forecast') && h !== 'forecast_avg');
+      const firstForecastIndex = dataRows.findIndex(row => {
+        return forecastCols.some(col => {
+          const idx = headers.indexOf(col);
+          return row[idx] && row[idx].trim() !== '';
+        });
+      });
 
+      // Отбрасываем первые строки (без прогнозов)
+      const trimmedRows = dataRows.slice(firstForecastIndex);
+
+      const dates = trimmedRows.map(r => r[0]);
       const datasets = [];
 
-      // Detect forecast columns
-      const forecastCols = headers.filter(h => h.startsWith('forecast') && h !== 'forecast_avg');
-
       // Forecast lines
+      const forecastColors = ['#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#8000ff', '#ff00ff', '#ff0080'];
+
       forecastCols.forEach((col, i) => {
         const idx = headers.indexOf(col);
-        const colorList = ['#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#8000ff', '#ff00ff', '#ff0080'];
         datasets.push({
           label: col,
-          data: dataRows.map(r => +r[idx] || null),
-          borderColor: colorList[i % colorList.length],
+          data: trimmedRows.map(r => +r[idx] || null),
+          borderColor: forecastColors[i % forecastColors.length],
           backgroundColor: 'transparent',
           borderWidth: 1,
           pointRadius: 0,
@@ -36,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (forecastAvgIdx !== -1) {
         datasets.push({
           label: 'Forecast Avg',
-          data: dataRows.map(r => +r[forecastAvgIdx] || null),
+          data: trimmedRows.map(r => +r[forecastAvgIdx] || null),
           borderColor: '#0000ff',
           backgroundColor: 'transparent',
           borderWidth: 2,
@@ -45,10 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Actual BTC
+      // BTC Actual
       const actualIdx = headers.indexOf('btc_actual');
       if (actualIdx !== -1) {
-        const btcData = dataRows.map(r => +r[actualIdx] || null);
+        const btcData = trimmedRows.map(r => +r[actualIdx] || null);
         const lastNonNullIndex = btcData.map((val, idx) => val ? idx : null).filter(v => v !== null).pop();
         datasets.push({
           label: 'BTC Actual',
@@ -65,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Moving Average
       const maIdx = headers.indexOf('moving_average');
       if (maIdx !== -1) {
-        const maData = dataRows.map(r => +r[maIdx] || null);
+        const maData = trimmedRows.map(r => +r[maIdx] || null);
         datasets.push({
           label: 'Moving Average',
           data: maData,
@@ -77,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      // Chart
       const ctx = document.getElementById('btcChart').getContext('2d');
       new Chart(ctx, {
         type: 'line',
