@@ -98,9 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
           maintainAspectRatio: false,
           scales: {
             x: {
+             type: 'time',
+             time: {
+               unit: 'month'
+               displayFormats: {month: 'MMM'}
+            },
               ticks: {
-                autoSkip: true,
-                maxTicksLimit: 12,
                 color: '#ffffff'
               },
               grid: { color: '#555' }
