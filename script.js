@@ -127,3 +127,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
             }
+},
+          plugins: {
+            legend: {
+              labels: {
+                color: '#ffffff',
+                font: { family: 'Menlo' }
+              }
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            }
+          }
+        }
+      });
+    })
+    .catch(err => console.error('Error loading CSV:', err));
+});
