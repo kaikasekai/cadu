@@ -97,11 +97,11 @@ document.addEventListener('DOMContentLoaded', () => {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: {
-             type: 'time',
-             time: {
-               unit: 'month'
-               displayFormats: {month: 'MMM'}
+           x: {
+            type: 'time',
+            time: {
+             unit: 'month'
+             displayFormats: {month: 'MMM'}
             },
               ticks: {
                 color: '#ffffff'
