@@ -19,25 +19,31 @@ canvas {
   aspect-ratio: 2 / 1; /* адаптивная пропорция */
 }
 
+.accordion {
+  margin-top: 20px;
+}
+
 .accordion-toggle {
-  background-color: #555;
-  color: white;
-  padding: 10px;
-  width: 100%;
+  background-color: #222;
+  color: #fff;
   border: none;
-  text-align: left;
+  padding: 10px 15px;
   cursor: pointer;
-  font-family: Menlo, monospace;
+  width: 100%;
+  text-align: left;
   font-size: 16px;
 }
 
 .accordion-content {
-  display: none;
-  background-color: #666;
-  padding: 10px;
-  font-family: Menlo, monospace;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  background: #333;
+  color: #fff;
+  padding: 0 15px;
 }
 
-.accordion-toggle.active + .accordion-content {
-  display: block;
+.accordion-content.open {
+  max-height: 200px;
+  padding: 10px 15px;
 }
