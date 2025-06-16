@@ -53,10 +53,7 @@ fetch('data.csv')
     rows.forEach(row => {
       const cols = row.split(',');
       const date = cols[dateIndex];
-      const hasForecast = forecastIndexes.some(i => cols[i]);
-      const hasActual = cols[actualIndex];
-      const hasMA = cols[maIndex];
-      if (!(hasForecast  hasActual  hasMA)) return;
+      if (!forecastIndexes.some(i => cols[i])) return;
       labels.push(date);
 
       forecastIndexes.forEach((i, idx) => {
