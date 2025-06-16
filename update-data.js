@@ -1,82 +1,69 @@
-const fs = require('fs');
-const fetch = require('node-fetch');
-const path = './data.csv';
+const fs = require("fs");
+const fetch = require("node-fetch");
+const path = require("path");
 
-async function getBTCPrice() {
-  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+const FILE_PATH = path.join(__dirname, "data.csv");
+
+async function fetchBTCPrice() {
+  const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd";
+  const response = await fetch(url);
   const data = await response.json();
   return data.bitcoin.usd;
 }
 
 function calculateMovingAverage(data, index, window = 30) {
-  const values = [];
-  for (let i = index - window + 1; i <= index; i++) {
-    const val = parseFloat(data[i]?.btc_actual);
-    if (!isNaN(val)) {
-      values.push(val);
-    }
-  }
-  if (values.length === window) {
-    return (values.reduce((sum, val) => sum + val, 0) / window).toFixed(2);
-  }
-  return '';
+  const slice = data.slice(index - window, index);
+  const values = slice.map(row => parseFloat(row.btc_actual)).filter(v => !isNaN(v));
+  if (values.length < window) return "";
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  return (sum / window).toFixed(2);
 }
 
-(async () => {
-  if (!fs.existsSync(path)) {
-    console.error('Файл data.csv не найден.');
-    return;
-  }
-
-  const content = fs.readFileSync(path, 'utf8');
-  const lines = content.trim().split('\n');
-  const header = lines[0].split(',').map(col => col.trim().toLowerCase());
-
-  const dateIndex = header.indexOf('date');
-  const btcIndex = header.indexOf('btc_actual');
-  const maIndex = header.indexOf('moving_average');
-
-  if (dateIndex === -1  btcIndex === -1  maIndex === -1) {
-    console.error("❌ Колонки 'btc_actual' или 'moving_average' не найдены в заголовке CSV.");
-    return;
-  }
-
-  const rows = lines.slice(1).map(line => line.split(','));
-  const today = new Date().toISOString().split('T')[0];
-  const todayRow = rows.find(row => row[dateIndex] === today);
-
-  if (!todayRow) {
-    console.log('Сегодняшняя дата отсутствует в data.csv.');
-    return;
-  }
-
-  // Обновить btc_actual, если он пустой
-  if (!todayRow[btcIndex]) {
-    const btcPrice = await getBTCPrice();
-    console.log(`💰 Актуальный курс BTC: $${btcPrice}`);
-    todayRow[btcIndex] = btcPrice;
-  }
-
-  // Добавить moving_average, если возможен расчет
-  const fullRows = rows.map(row => {
-    const obj = {};
-    header.forEach((key, i) => {
-      obj[key] = row[i] || '';
-    });
-    return obj;
+async function updateData() {
+  let csv = fs.readFileSync(FILE_PATH, "utf8").trim().split("\n");
+  const headers = csv[0].split(",").map(h => h.trim().toLowerCase());
+  let rows = csv.slice(1).map(line => {
+    const parts = line.split(",");
+    while (parts.length < headers.length) parts.push(""); // pad missing
+    return headers.reduce((obj, key, i) => {
+      obj[key] = parts[i].trim();
+      return obj;
+    }, {});
   });
 
-  const todayIndex = fullRows.findIndex(row => row.date === today);
-  const ma = calculateMovingAverage(fullRows, todayIndex);
-  if (ma) {
-    todayRow[maIndex] = ma;
-    console.log(`📈 Moving Average (30 дней): ${ma}`);
-  } else {
-    console.log('Недостаточно данных для расчёта moving average.');
+  const today = new Date().toISOString().slice(0, 10);
+  let updated = false;
+
+  for (let i = 30; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row.btc_actual) {
+      const btcPrice = await fetchBTCPrice();
+      row.btc_actual = btcPrice.toFixed(2);
+      updated = true;
+      console.log(`✔ BTC actual added for ${row.date}: $${btcPrice}`);
+    }
+
+    if (!row.moving_average) {
+      const ma = calculateMovingAverage(rows, i);
+      if (ma) {
+        row.moving_average = ma;
+        console.log(`✔ Moving average added for ${row.date}: $${ma}`);
+        updated = true;
+      }
+    }
   }
 
-  // Сохранить обновлённый файл
-  const updated = [header.join(',')].concat(rows.map(row => row.join(','))).join('\n');
-  fs.writeFileSync(path, updated, 'utf8');
-  console.log('✅ Файл data.csv обновлён.');
-})();
+  if (updated) {
+    const newCsv = [headers.join(",")].concat(
+      rows.map(row => headers.map(h => row[h] || "").join(","))
+    );
+    fs.writeFileSync(FILE_PATH, newCsv.join("\n"), "utf8");
+    console.log("✅ data.csv updated");
+  } else {
+    console.log("ℹ No updates needed — all data present");
+  }
+}
+
+updateData().catch(err => {
+  console.error("❌ Error updating BTC data:", err);
+});
