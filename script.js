@@ -1,137 +1,67 @@
-document.addEventListener("DOMContentLoaded", function () {
-  fetch("data.csv")
-    .then(response => response.text())
-    .then(csvText => {
-      const rows = csvText.trim().split("\n").map(row => row.split(","));
-      const headers = rows[0].map(h => h.trim().toLowerCase());
-      const dataRows = rows.slice(1).map(row =>
-        row.reduce((obj, val, i) => {
-          obj[headers[i]] = val.trim();
-          return obj;
-        }, {})
-      );
+const fs = require("fs");
+const fetch = require("node-fetch");
+const path = "./data.csv";
 
-      // Не отображать первые 30 строк (где только btc_actual)
-      const forecastStartIndex = dataRows.findIndex(row =>
-        headers.some(h => h.startsWith("forecast") && row[h])
-      );
-      const displayData = dataRows.slice(forecastStartIndex);
+// Получить цену BTC на момент закрытия (около 00:00 UTC)
+async function getBTCPrice() {
+  const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+  const data = await res.json();
+  return data.bitcoin.usd;
+}
 
-      const labels = displayData.map(row => row.date);
+// Считать CSV в массив
+function parseCSV(data) {
+  return data
+    .trim()
+    .split("\n")
+    .map((line) => line.split(","));
+}
 
-      const datasets = [];
+// Записать массив обратно в CSV
+function stringifyCSV(rows) {
+  return rows.map((row) => row.join(",")).join("\n") + "\n";
+}
 
-      // Цвета линий
-      const colors = {
-        btc_actual: "#f7931a",
-        moving_average: "#00c69e",
-        forecast_avg: "#0000ff",
-        forecasts: [
-          "#ff8000", "#ffff00", "#80ff00", "#00ff00", "#00ff80",
-          "#00ffff", "#0080ff", "#8000ff", "#ff00ff", "#ff0080"
-        ]
-      };
+// Основной скрипт
+(async () => {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const file = fs.readFileSync(path, "utf8");
+  const rows = parseCSV(file);
 
-      // Добавляем фактический BTC
-      datasets.push({
-        label: "BTC Actual",
-        data: displayData.map(row => row.btc_actual ? +row.btc_actual : null),
-        borderColor: colors.btc_actual,
-        backgroundColor: colors.btc_actual,
-        borderWidth: 2,
-        pointRadius: displayData.map((_, i, arr) => (i === arr.length - 1 ? 4 : 0)),
-        tension: 0.3
-      });
+  // Заголовки: [date, forecast1, ..., forecast_avg, btc_actual, moving_average]
+  const header = rows[0];
+  const dateIndex = 0;
+  const btcIndex = header.indexOf("btc_actual");
+  const maIndex = header.indexOf("moving_average");
 
-      // Moving Average
-      datasets.push({
-        label: "Moving Average (30d)",
-        data: displayData.map(row => row.moving_average ? +row.moving_average : null),
-        borderColor: colors.moving_average,
-        backgroundColor: colors.moving_average,
-        borderWidth: 2,
-        borderDash: [5, 5],
-        pointRadius: 0,
-        tension: 0.3
-      });
+  // Найдём первую строку, где btc_actual пустой и дата ≤ сегодня
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const date = row[dateIndex];
+    const btc_actual = row[btcIndex];
 
-      // Forecast Average
-      if (headers.includes("forecast_avg")) {
-        datasets.push({
-          label: "Forecast Avg",
-          data: displayData.map(row => row.forecast_avg ? +row.forecast_avg : null),
-          borderColor: colors.forecast_avg,
-          backgroundColor: colors.forecast_avg,
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.3
-        });
+    if (!btc_actual && date <= today) {
+      // Получаем 30 предыдущих значений btc_actual
+      const previous = [];
+      for (let j = i - 30; j < i; j++) {
+        if (j < 1 || !rows[j][btcIndex]) break;
+        previous.push(parseFloat(rows[j][btcIndex]));
       }
 
-      // Все forecastN
-      let forecastColorIndex = 0;
-      headers.forEach(h => {
-        if (/^forecast\d+$/i.test(h)) {
-          datasets.push({
-            label: h,
-            data: displayData.map(row => row[h] ? +row[h] : null),
-            borderColor: colors.forecasts[forecastColorIndex % colors.forecasts.length],
-            backgroundColor: colors.forecasts[forecastColorIndex % colors.forecasts.length],
-            borderWidth: 1,
-            pointRadius: 0,
-            borderDash: [2, 2],
-            tension: 0.2
-          });
-          forecastColorIndex++;
-        }
-      });
+      if (previous.length < 30) {
+        console.log(`❌ Недостаточно данных для расчёта moving_average на ${date} — ${previous.length}/30`);
+        break;
+      }
 
-      const ctx = document.getElementById("btcChart").getContext("2d");
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: labels,
-          datasets: datasets
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              ticks: {
-                callback: function (val, index) {
-                  const date = new Date(labels[index]);
-                  const options = { month: "short" };
-                  const day = date.getDate();
-                  if (day < 8) return ${date.toLocaleDateString("en", options)} 1;
-                  if (day < 15) return ${date.toLocaleDateString("en", options)} 2;
-                  if (day < 22) return ${date.toLocaleDateString("en", options)} 3;
-                  return ${date.toLocaleDateString("en", options)} 4;
-                },
-                maxRotation: 0,
-                autoSkip: true
-              },
-              grid: { color: "#555" }
-            },
-            y: {
-              ticks: {
-                callback: val => val,
-                precision: 0
-              },
-              grid: { color: "#555" }
-            }
-          },
-          plugins: {
-            legend: {
-              labels: {
-                color: "#fff",
-                font: {
-                  family: "Menlo"
-                }
-              }
-            }
-          }
-        }
-      });
-    });
-});
+      const btcPrice = await getBTCPrice();
+      const movingAverage = previous.reduce((a, b) => a + b, 0) / previous.length;
+
+      row[btcIndex] = btcPrice.toFixed(2);
+      row[maIndex] = movingAverage.toFixed(2);
+
+      fs.writeFileSync(path, stringifyCSV(rows));
+      console.log(`✅ Обновлено: ${date}, btc_actual = ${btcPrice}, moving_average = ${movingAverage.toFixed(2)}`);
+      break; // Только одну строку за раз
+    }
+  }
+})();
