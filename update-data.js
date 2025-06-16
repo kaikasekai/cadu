@@ -1,69 +1,67 @@
 const fs = require("fs");
 const fetch = require("node-fetch");
-const path = require("path");
+const path = "./data.csv";
 
-const FILE_PATH = path.join(__dirname, "data.csv");
-
-async function fetchBTCPrice() {
-  const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd";
-  const response = await fetch(url);
-  const data = await response.json();
+// Получить цену BTC на момент закрытия (около 00:00 UTC)
+async function getBTCPrice() {
+  const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+  const data = await res.json();
   return data.bitcoin.usd;
 }
 
-function calculateMovingAverage(data, index, window = 30) {
-  const slice = data.slice(index - window, index);
-  const values = slice.map(row => parseFloat(row.btc_actual)).filter(v => !isNaN(v));
-  if (values.length < window) return "";
-  const sum = values.reduce((acc, val) => acc + val, 0);
-  return (sum / window).toFixed(2);
+// Считать CSV в массив
+function parseCSV(data) {
+  return data
+    .trim()
+    .split("\n")
+    .map((line) => line.split(","));
 }
 
-async function updateData() {
-  let csv = fs.readFileSync(FILE_PATH, "utf8").trim().split("\n");
-  const headers = csv[0].split(",").map(h => h.trim().toLowerCase());
-  let rows = csv.slice(1).map(line => {
-    const parts = line.split(",");
-    while (parts.length < headers.length) parts.push(""); // pad missing
-    return headers.reduce((obj, key, i) => {
-      obj[key] = parts[i].trim();
-      return obj;
-    }, {});
-  });
+// Записать массив обратно в CSV
+function stringifyCSV(rows) {
+  return rows.map((row) => row.join(",")).join("\n") + "\n";
+}
 
-  const today = new Date().toISOString().slice(0, 10);
-  let updated = false;
+// Основной скрипт
+(async () => {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const file = fs.readFileSync(path, "utf8");
+  const rows = parseCSV(file);
 
-  for (let i = 30; i < rows.length; i++) {
+  // Заголовки: [date, forecast1, ..., forecast_avg, btc_actual, moving_average]
+  const header = rows[0];
+  const dateIndex = 0;
+  const btcIndex = header.indexOf("btc_actual");
+  const maIndex = header.indexOf("moving_average");
+
+  // Найдём первую строку, где btc_actual пустой и дата ≤ сегодня
+  for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    if (!row.btc_actual) {
-      const btcPrice = await fetchBTCPrice();
-      row.btc_actual = btcPrice.toFixed(2);
-      updated = true;
-      console.log(`✔ BTC actual added for ${row.date}: $${btcPrice}`);
-    }
+    const date = row[dateIndex];
+    const btc_actual = row[btcIndex];
 
-    if (!row.moving_average) {
-      const ma = calculateMovingAverage(rows, i);
-      if (ma) {
-        row.moving_average = ma;
-        console.log(`✔ Moving average added for ${row.date}: $${ma}`);
-        updated = true;
+    if (!btc_actual && date <= today) {
+      // Получаем 30 предыдущих значений btc_actual
+      const previous = [];
+      for (let j = i - 30; j < i; j++) {
+        if (j < 1 || !rows[j][btcIndex]) break;
+        previous.push(parseFloat(rows[j][btcIndex]));
       }
+
+      if (previous.length < 30) {
+        console.log(`❌ Недостаточно данных для расчёта moving_average на ${date} — ${previous.length}/30`);
+        break;
+      }
+
+      const btcPrice = await getBTCPrice();
+      const movingAverage = previous.reduce((a, b) => a + b, 0) / previous.length;
+
+      row[btcIndex] = btcPrice.toFixed(2);
+      row[maIndex] = movingAverage.toFixed(2);
+
+      fs.writeFileSync(path, stringifyCSV(rows));
+      console.log(`✅ Обновлено: ${date}, btc_actual = ${btcPrice}, moving_average = ${movingAverage.toFixed(2)}`);
+      break; // Только одну строку за раз
     }
   }
-
-  if (updated) {
-    const newCsv = [headers.join(",")].concat(
-      rows.map(row => headers.map(h => row[h] || "").join(","))
-    );
-    fs.writeFileSync(FILE_PATH, newCsv.join("\n"), "utf8");
-    console.log("✅ data.csv updated");
-  } else {
-    console.log("ℹ No updates needed — all data present");
-  }
-}
-
-updateData().catch(err => {
-  console.error("❌ Error updating BTC data:", err);
-});
+})();
