@@ -1,3 +1,4 @@
+// Загрузка и отрисовка графика
 fetch('data.csv')
   .then(response => response.text())
   .then(text => {
@@ -8,7 +9,7 @@ fetch('data.csv')
     const maIndex = headers.indexOf('moving_average');
     const avgIndex = headers.indexOf('forecast_avg');
     const forecastIndexes = headers
-      .map((h, i) => h.startsWith('forecast') && !['forecast_avg'].includes(h) ? i : null)
+      .map((h, i) => h.startsWith('forecast') && h !== 'forecast_avg' ? i : null)
       .filter(i => i !== null);
 
     const labels = [];
@@ -86,6 +87,23 @@ fetch('data.csv')
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        },
+        plugins: {
+          tooltip: {
+            enabled: true,
+            mode: 'index',
+            intersect: false
+          },
+          legend: {
+            labels: {
+              color: 'white'
+            }
+          }
+        },
         scales: {
           x: {
             ticks: {
@@ -105,10 +123,17 @@ fetch('data.csv')
             },
             grid: { color: '#555' }
           }
-        },
-        plugins: {
-          legend: { labels: { color: 'white' } }
         }
       }
     });
   });
+
+// Логика аккордеона
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.querySelector('.accordion-toggle');
+  const content = document.querySelector('.accordion-content');
+
+  toggle.addEventListener('click', () => {
+    content.classList.toggle('open');
+  });
+});
