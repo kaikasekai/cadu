@@ -1,69 +1,82 @@
-const fs = require("fs");
-const fetch = require("node-fetch");
-const path = "./data.csv";
+const fs = require('fs');
+const fetch = require('node-fetch');
+const path = './data.csv';
 
-// Получить цену BTC с CoinGecko
 async function getBTCPrice() {
-  const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-  const data = await res.json();
+  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+  const data = await response.json();
   return data.bitcoin.usd;
 }
 
-// CSV → Массив строк
-function parseCSV(data) {
-  return data
-    .trim()
-    .split("\n")
-    .map((line) => line.split(","));
-}
-
-// Массив строк → CSV
-function stringifyCSV(rows) {
-  return rows.map((row) => row.join(",")).join("\n") + "\n";
+function calculateMovingAverage(data, index, window = 30) {
+  const values = [];
+  for (let i = index - window + 1; i <= index; i++) {
+    const val = parseFloat(data[i]?.btc_actual);
+    if (!isNaN(val)) {
+      values.push(val);
+    }
+  }
+  if (values.length === window) {
+    return (values.reduce((sum, val) => sum + val, 0) / window).toFixed(2);
+  }
+  return '';
 }
 
 (async () => {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const file = fs.readFileSync(path, "utf8");
-  const rows = parseCSV(file);
-
-  const header = rows[0];
-  const dateIndex = 0;
-  const btcIndex = header.indexOf("btc_actual");
-  const maIndex = header.indexOf("moving_average");
-
-  if (btcIndex === -1 || maIndex === -1) {
-    console.error("❌ Колонки 'btc_actual' или 'moving_average' не найдены в заголовке CSV");
-    process.exit(1);
+  if (!fs.existsSync(path)) {
+    console.error('Файл data.csv не найден.');
+    return;
   }
 
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const date = row[dateIndex];
-    const btc_actual = row[btcIndex];
+  const content = fs.readFileSync(path, 'utf8');
+  const lines = content.trim().split('\n');
+  const header = lines[0].split(',').map(col => col.trim().toLowerCase());
 
-    if (!btc_actual && date <= today) {
-      const previous = [];
-      for (let j = i - 30; j < i; j++) {
-        if (j < 1 || !rows[j][btcIndex]) break;
-        previous.push(parseFloat(rows[j][btcIndex]));
-      }
+  const dateIndex = header.indexOf('date');
+  const btcIndex = header.indexOf('btc_actual');
+  const maIndex = header.indexOf('moving_average');
 
-      if (previous.length < 30) {
-        console.log(`❌ Недостаточно данных для расчёта moving_average на ${date} — ${previous.length}/30`);
-        break;
-      }
-
-      const btcPrice = await getBTCPrice();
-      const movingAverage = previous.reduce((a, b) => a + b, 0) / previous.length;
-
-      rows[i][btcIndex] = btcPrice.toFixed(2);
-      rows[i][maIndex] = movingAverage.toFixed(2);
-
-      fs.writeFileSync(path, stringifyCSV(rows), "utf8");
-
-      console.log(`✅ Обновлено: ${date}, btc_actual = ${btcPrice}, moving_average = ${movingAverage.toFixed(2)}`);
-      break;
-    }
+  if (dateIndex === -1  btcIndex === -1  maIndex === -1) {
+    console.error("❌ Колонки 'btc_actual' или 'moving_average' не найдены в заголовке CSV.");
+    return;
   }
+
+  const rows = lines.slice(1).map(line => line.split(','));
+  const today = new Date().toISOString().split('T')[0];
+  const todayRow = rows.find(row => row[dateIndex] === today);
+
+  if (!todayRow) {
+    console.log('Сегодняшняя дата отсутствует в data.csv.');
+    return;
+  }
+
+  // Обновить btc_actual, если он пустой
+  if (!todayRow[btcIndex]) {
+    const btcPrice = await getBTCPrice();
+    console.log(`💰 Актуальный курс BTC: $${btcPrice}`);
+    todayRow[btcIndex] = btcPrice;
+  }
+
+  // Добавить moving_average, если возможен расчет
+  const fullRows = rows.map(row => {
+    const obj = {};
+    header.forEach((key, i) => {
+      obj[key] = row[i] || '';
+    });
+    return obj;
+  });
+
+  const todayIndex = fullRows.findIndex(row => row.date === today);
+  const ma = calculateMovingAverage(fullRows, todayIndex);
+  if (ma) {
+    todayRow[maIndex] = ma;
+    console.log(`📈 Moving Average (30 дней): ${ma}`);
+  } else {
+    console.log('Недостаточно данных для расчёта moving average.');
+  }
+
+  // Сохранить обновлённый файл
+  const updated = [header.join(',')].concat(rows.map(row => row.join(','))).join('\n');
+  fs.writeFileSync(path, updated, 'utf8');
+  console.log('✅ Файл data.csv обновлён.');
 })();
