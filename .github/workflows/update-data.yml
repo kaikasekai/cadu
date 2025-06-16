@@ -2,7 +2,7 @@ name: Update BTC Actual and Moving Average
 
 on:
   schedule:
-    - cron: '31 11 * * *' # Каждый день в полночь UTC
+    - cron: '45 11 * * *' # Каждый день в полночь UTC
   workflow_dispatch: # Можно запускать вручную
 
 jobs:
