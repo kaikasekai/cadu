@@ -1,114 +1,135 @@
-fetch('data.csv')
-  .then(response => response.text())
-  .then(text => {
-    const rows = text.trim().split('\n').slice(1);
-    const headers = text.trim().split('\n')[0].split(',');
-    const dateIndex = headers.indexOf('date');
-    const actualIndex = headers.indexOf('btc_actual');
-    const maIndex = headers.indexOf('moving_average');
-    const avgIndex = headers.indexOf('forecast_avg');
-    const forecastIndexes = headers
-      .map((h, i) => h.startsWith('forecast') && !['forecast_avg'].includes(h) ? i : null)
-      .filter(i => i !== null);
+async function loadCSV() {
+  const res = await fetch("data.csv");
+  const text = await res.text();
+  const rows = text.trim().split("\n").map((line) => line.split(","));
 
-    const labels = [];
-    const datasets = [];
-
-    const forecastDatasets = forecastIndexes.map((_, i) => ({
-      label: `Forecast ${i + 1}`,
-      borderColor: ['#ff8000','#ffff00','#80ff00','#00ff00','#00ff80','#00ffff','#0080ff','#8000ff','#ff00ff','#ff0080'][i % 10],
-      data: [],
-      fill: false,
-      borderWidth: 1,
-      pointRadius: 0,
-    }));
-
-    const forecastAvg = {
-      label: 'Forecast Avg',
-      borderColor: '#0000ff',
-      data: [],
-      fill: false,
-      borderWidth: 2,
-      pointRadius: 0,
-    };
-
-    const btcActual = {
-      label: 'BTC Actual',
-      borderColor: '#f7931a',
-      data: [],
-      fill: false,
-      borderWidth: 2,
-      pointRadius: 0,
-    };
-
-    const movingAverage = {
-      label: 'Moving Avg',
-      borderColor: '#00c69e',
-      data: [],
-      fill: false,
-      borderWidth: 2,
-      pointRadius: 0,
-    };
-
-    rows.forEach(row => {
-      const cols = row.split(',');
-      const date = cols[dateIndex];
-      if (!forecastIndexes.some(i => cols[i])) return;
-      labels.push(date);
-
-      forecastIndexes.forEach((i, idx) => {
-        forecastDatasets[idx].data.push({ x: date, y: +cols[i] });
-      });
-
-      forecastAvg.data.push({ x: date, y: +cols[avgIndex] });
-
-      if (cols[actualIndex]) {
-        btcActual.data.push({ x: date, y: +cols[actualIndex] });
-      }
-
-      if (cols[maIndex]) {
-        movingAverage.data.push({ x: date, y: +cols[maIndex] });
-      }
+  const header = rows[0];
+  const data = rows.slice(1).map((row) => {
+    const obj = {};
+    header.forEach((key, i) => {
+      obj[key] = row[i];
     });
+    return obj;
+  });
 
-    const ctx = document.getElementById('btcChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          ...forecastDatasets,
-          forecastAvg,
-          btcActual,
-          movingAverage,
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            ticks: {
-              callback: function(value, index) {
-                const date = this.getLabelForValue(value);
-                const d = new Date(date);
-                return `${d.getMonth()+1}/${d.getDate()}`;
-              },
-              color: 'white',
-            },
-            grid: { color: '#555' }
-          },
-          y: {
-            ticks: {
-              callback: val => val,
-              color: 'white',
-            },
-            grid: { color: '#555' }
-          }
-        },
-        plugins: {
-          legend: { labels: { color: 'white' } }
-        }
-      }
+  return data;
+}
+
+function createChart(data) {
+  const labels = data.map((row) => row.date);
+  const datasets = [];
+
+  // Detect forecastN dynamically
+  const forecastKeys = Object.keys(data[0]).filter((key) => /^forecast\d+$/i.test(key));
+
+  forecastKeys.forEach((key, index) => {
+    const colorList = ["#ff8000", "#ffff00", "#80ff00", "#00ff00", "#00ff80", "#00ffff", "#0080ff", "#8000ff", "#ff00ff", "#ff0080"];
+    const color = colorList[index % colorList.length];
+
+    datasets.push({
+      label: key,
+      data: data.map((row) => parseFloat(row[key] || null)),
+      borderColor: color,
+      borderWidth: 1,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
     });
   });
+
+  // forecast_avg
+  datasets.push({
+    label: "Forecast Avg",
+    data: data.map((row) => parseFloat(row.forecast_avg || null)),
+    borderColor: "#0000ff",
+    borderWidth: 2,
+    fill: false,
+    tension: 0.4,
+    pointRadius: 0,
+  });
+
+  // btc_actual
+  datasets.push({
+    label: "BTC Actual",
+    data: data.map((row) => parseFloat(row.btc_actual || null)),
+    borderColor: "#f7931a",
+    borderWidth: 2,
+    fill: false,
+    tension: 0.2,
+    pointRadius: (ctx) => ctx.dataIndex === data.length - 1 ? 4 : 0,
+    pointBackgroundColor: "#f7931a"
+  });
+
+  // moving_average
+  datasets.push({
+    label: "Moving Average",
+    data: data.map((row) => parseFloat(row.moving_average || null)),
+    borderColor: "#00c69e",
+    borderWidth: 2,
+    fill: false,
+    tension: 0.2,
+    pointRadius: 0
+  });
+
+  const ctx = document.getElementById("btcChart").getContext("2d");
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 12,
+            color: "#ffffff"
+          },
+          grid: {
+            color: "#555555"
+          }
+        },
+        y: {
+          ticks: {
+            callback: (value) => value.toFixed(0),
+            color: "#ffffff"
+          },
+          grid: {
+            color: "#555555"
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#ffffff",
+            font: {
+              family: "Menlo"
+            }
+          }
+        },
+        tooltip: {
+          mode: "index",
+          intersect: false
+        }
+      },
+      interaction: {
+        mode: "index",
+        intersect: false
+      }
+    }
+  });
+}
+
+(async () => {
+  const rawData = await loadCSV();
+
+  // Отображать только строки с forecast_avg и не пустыми значениями
+  const filtered = rawData.filter((row) => row.forecast_avg && !isNaN(row.forecast_avg));
+
+  createChart(filtered);
+})();
