@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Frequency Generator</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  input { margin: 5px; }
+</style>
+</head>
+
+<body>
+
+<h3>Генератор частот</h3>
+
+Частоты (через запятую):<br>
+<input id="freqs" value="440, 550"><br><br>
+
+Частота пульсации (Гц):<br>
+<input id="lfo" value="4"><br><br>
+
+<button onclick="start()">Start</button>
+<button onclick="stop()">Stop</button>
+
+<script>
+let context;
+let oscillators = [];
+let gainNodes = [];
+let lfoOsc;
+let lfoGain;
+
+function start() {
+  stop();
+
+  context = new (window.AudioContext || window.webkitAudioContext)();
+
+  let freqs = document.getElementById("freqs").value
+      .split(",")
+      .map(f => parseFloat(f.trim()))
+      .filter(f => !isNaN(f));
+
+  let lfoFreq = parseFloat(document.getElementById("lfo").value);
+
+  // LFO для общей пульсации
+  lfoOsc = context.createOscillator();
+  lfoGain = context.createGain();
+
+  lfoOsc.frequency.value = lfoFreq;
+  lfoGain.gain.value = 0.5;
+
+  lfoOsc.connect(lfoGain);
+  lfoOsc.start();
+
+  freqs.forEach(freq => {
+    let osc = context.createOscillator();
+    let gain = context.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = freq;
+
+    gain.gain.value = 0.5;
+
+    // Модуляция громкости LFO
+    lfoGain.connect(gain.gain);
+
+    osc.connect(gain);
+    gain.connect(context.destination);
+
+    osc.start();
+
+    oscillators.push(osc);
+    gainNodes.push(gain);
+  });
+}
+
+function stop() {
+  oscillators.forEach(o => o.stop());
+  oscillators = [];
+
+  if (lfoOsc) lfoOsc.stop();
+}
+</script>
+
+</body>
+</html>
