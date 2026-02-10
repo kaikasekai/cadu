@@ -2,83 +2,113 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Frequency Generator</title>
+<title>iPad Frequency Generator</title>
+
 <style>
-  body { font-family: Arial; padding: 20px; }
-  input { margin: 5px; }
+  body {
+    font-family: Arial;
+    padding: 20px;
+  }
+  input {
+    margin: 5px;
+    font-size: 16px;
+  }
+  button {
+    font-size: 18px;
+    margin: 5px;
+  }
 </style>
 </head>
 
 <body>
 
-<h3>Генератор частот</h3>
+<h2>Генератор частот (iPad)</h2>
 
+<p>
 Частоты (через запятую):<br>
-<input id="freqs" value="440, 550"><br><br>
+<input id="freqs" value="440, 550" size="20">
+</p>
 
+<p>
 Частота пульсации (Гц):<br>
-<input id="lfo" value="4"><br><br>
+<input id="lfo" value="4" size="5">
+</p>
 
-<button onclick="start()">Start</button>
-<button onclick="stop()">Stop</button>
+<button onclick="startAudio()">Start</button>
+<button onclick="stopAudio()">Stop</button>
 
 <script>
-let context;
+
+let audioContext = null;
 let oscillators = [];
-let gainNodes = [];
-let lfoOsc;
-let lfoGain;
+let gains = [];
+let lfoOsc = null;
+let lfoGain = null;
 
-function start() {
-  stop();
+function startAudio() {
 
-  context = new (window.AudioContext || window.webkitAudioContext)();
+  stopAudio();
 
-  let freqs = document.getElementById("freqs").value
-      .split(",")
-      .map(f => parseFloat(f.trim()))
-      .filter(f => !isNaN(f));
+  // Создаём AudioContext только после нажатия кнопки
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+  let freqInput = document.getElementById("freqs").value;
+
+  let freqs = freqInput.split(",")
+    .map(f => parseFloat(f.trim()))
+    .filter(f => !isNaN(f));
 
   let lfoFreq = parseFloat(document.getElementById("lfo").value);
 
   // LFO для общей пульсации
-  lfoOsc = context.createOscillator();
-  lfoGain = context.createGain();
+  lfoOsc = audioContext.createOscillator();
+  lfoGain = audioContext.createGain();
 
   lfoOsc.frequency.value = lfoFreq;
-  lfoGain.gain.value = 0.5;
+  lfoGain.gain.value = 0.4;
 
   lfoOsc.connect(lfoGain);
   lfoOsc.start();
 
   freqs.forEach(freq => {
-    let osc = context.createOscillator();
-    let gain = context.createGain();
+
+    let osc = audioContext.createOscillator();
+    let gain = audioContext.createGain();
 
     osc.type = "sine";
     osc.frequency.value = freq;
 
-    gain.gain.value = 0.5;
+    gain.gain.value = 0.3;
 
-    // Модуляция громкости LFO
+    // Накладываем пульсацию
     lfoGain.connect(gain.gain);
 
     osc.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(audioContext.destination);
 
     osc.start();
 
     oscillators.push(osc);
-    gainNodes.push(gain);
+    gains.push(gain);
   });
 }
 
-function stop() {
+function stopAudio() {
+
   oscillators.forEach(o => o.stop());
   oscillators = [];
 
-  if (lfoOsc) lfoOsc.stop();
+  if (lfoOsc) {
+    lfoOsc.stop();
+    lfoOsc = null;
+  }
+
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
 }
+
 </script>
 
 </body>
